@@ -5,7 +5,7 @@ import nextTs from 'eslint-config-next/typescript';
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
-  globalIgnores(['.next/**', 'out/**', 'build/**', 'next-env.d.ts']),
+  globalIgnores(['.next/**', 'out/**', 'build/**', '.vercel/**', 'next-env.d.ts']),
   {
     // Спрайты ринга: нужен onError → SVG-заглушка, пока ассетов нет,
     // и мгновенная смена позы без слоя оптимизатора. next/image здесь мешает.
@@ -15,7 +15,14 @@ const eslintConfig = defineConfig([
   {
     rules: {
       // Раздел 3 ТЗ: текст модели выводится только как текст.
-      'react/no-danger': 'error',
+      // Без плагина react: правило ядра точечно бьёт по самому атрибуту.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']",
+          message: 'dangerouslySetInnerHTML запрещён: текст модели выводится только как текст.',
+        },
+      ],
       // Раздел 3 ТЗ: импорты только в начале файла.
       '@typescript-eslint/consistent-type-imports': 'error',
     },

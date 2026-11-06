@@ -229,7 +229,7 @@ textarea {
   position: absolute;
   bottom: 3%;
   aspect-ratio: 3 / 4;
-  max-height: 74%;
+  max-height: 86%;
   transition: transform var(--t-base) ease-out, opacity var(--t-base) linear;
   will-change: transform;
 }
@@ -243,7 +243,6 @@ textarea {
 .fighter--student {
   left: 0%;
   width: 54%;
-  transform: scaleX(-1);
   filter: drop-shadow(0 14px 20px rgba(0, 0, 0, 0.6));
 }
 
@@ -274,7 +273,7 @@ textarea {
 
 /* попадание: студент откидывается */
 .stage[data-phase='hit'] .fighter--student {
-  transform: scaleX(-1) rotate(-10deg) translateX(-4%);
+  transform: rotate(-8deg) translateX(-4%);
 }
 
 /* 5. кулак от первого лица */
