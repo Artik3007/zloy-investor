@@ -1,0 +1,1502 @@
+/* ============================================================
+   «Злой инвестор» — глобальные стили.
+   Tailwind не используется (раздел 3 ТЗ). Здесь живут токены,
+   сброс и базовая типографика. Сцена боя, HUD и итог добавляют
+   свои слои в фазах 2-3.
+   ============================================================ */
+
+:root {
+  /* Палитра ринга: тёмно-синее покрытие, прожекторы, канаты */
+  --c-bg: #070a14;
+  --c-canvas: #0a0e1a;
+  --c-surface: #121a2e;
+  --c-surface-2: #1b2540;
+  --c-line: #2b3550;
+  --c-text: #eef2ff;
+  --c-text-dim: #a3adc9;
+  --c-text-faint: #6b7694;
+
+  /* Акценты: удар, уворот, прожектор */
+  --c-hit: #ff3b47;
+  --c-parry: #2fd96b;
+  --c-spot: #ffd27a;
+  --c-rope-red: #d7263d;
+  --c-rope-blue: #2a5bd7;
+  --c-accent: #ffb23f;
+
+  /* Ранги (фишка 3 переиспользует) */
+  --c-rank-1: #8b7355;
+  --c-rank-2: #a8a29e;
+  --c-rank-3: #c084fc;
+  --c-rank-4: #38bdf8;
+  --c-rank-5: #ffd700;
+
+  /* Типографика */
+  --f-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, sans-serif;
+  --f-display: 'Arial Black', 'Helvetica Neue', Impact, var(--f-sans);
+
+  /* Ритм */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --r-sm: 6px;
+  --r-md: 12px;
+  --r-lg: 20px;
+
+  /* Минимальная зона нажатия (раздел 9.7) */
+  --tap: 44px;
+
+  /* Длительности фаз боя (раздел 9.3) — читает lib/fight/timeline.ts */
+  --t-fast: 180ms;
+  --t-base: 260ms;
+  --t-slow: 600ms;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--f-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+textarea {
+  font: inherit;
+}
+
+/* Фокус виден всегда (раздел 9.8) */
+:focus-visible {
+  outline: 3px solid var(--c-spot);
+  outline-offset: 2px;
+}
+
+/* Только для скринридеров */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- Каркас страницы старта (фаза 2 расширит) ---------- */
+
+.shell {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--sp-6) var(--sp-4);
+}
+
+.title {
+  font-family: var(--f-display);
+  font-size: clamp(32px, 9vw, 64px);
+  letter-spacing: 0.02em;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.subtitle {
+  margin-top: var(--sp-3);
+  color: var(--c-text-dim);
+  font-size: clamp(15px, 3.6vw, 19px);
+}
+
+.note {
+  margin-top: var(--sp-5);
+  color: var(--c-text-faint);
+  font-size: 14px;
+}
+
+/* ---------- Доступность: уважаем reduced motion (раздел 9.8) ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================
+   СЦЕНА РИНГА (раздел 9 ТЗ)
+   Анимируем только transform/opacity/filter.
+   ============================================================ */
+
+.stage {
+  position: relative;
+  width: 100%;
+  /* Пропорция задаётся экраном: на старте 4:5, в бою сцена тянется
+     на всю высоту, чтобы под карточкой вопроса оставались видны бойцы. */
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  background: var(--c-canvas);
+  border-radius: var(--r-md);
+  isolation: isolate;
+  touch-action: manipulation;
+}
+
+.stage-camera {
+  position: absolute;
+  inset: 0;
+  transform-origin: 38% 62%;
+  transition: transform var(--t-slow) cubic-bezier(0.2, 0.7, 0.2, 1);
+  will-change: transform;
+}
+
+/* 1. фон ринга */
+.layer-bg {
+  position: absolute;
+  inset: 0;
+  background-color: #0c1226;
+  background-image:
+    radial-gradient(120% 70% at 50% -8%, rgba(255, 210, 122, 0.3), transparent 60%),
+    radial-gradient(60% 40% at 50% 108%, rgba(42, 91, 215, 0.25), transparent 70%),
+    url('/ring/ring-bg.jpg');
+  background-size: cover;
+  background-position: 50% 58%;
+  background-repeat: no-repeat;
+}
+
+/* канаты как заглушка, пока нет ring-bg.jpg */
+.layer-bg::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 42%;
+  background:
+    linear-gradient(transparent 0 38%, var(--c-rope-red) 38% 41%, transparent 41%),
+    linear-gradient(transparent 0 58%, #f2f4ff 58% 61%, transparent 61%),
+    linear-gradient(transparent 0 78%, var(--c-rope-blue) 78% 81%, transparent 81%);
+  opacity: 0.55;
+}
+
+.layer-bg--corner {
+  background-image:
+    radial-gradient(80% 60% at 50% 20%, rgba(255, 190, 120, 0.35), transparent 70%),
+    url('/ring/corner-bg.jpg');
+}
+
+/* 2. цветокоррекция раунда */
+.layer-grade {
+  position: absolute;
+  inset: 0;
+  mix-blend-mode: screen;
+  transition: background var(--t-slow) linear;
+}
+
+/* 3-4. бойцы */
+/* Размер задаём по ширине сцены и ограничиваем по высоте: на вытянутом
+   мобильном кадре боец иначе вылезает за рамку. */
+.fighter {
+  position: absolute;
+  bottom: 3%;
+  aspect-ratio: 3 / 4;
+  max-height: 74%;
+  transition: transform var(--t-base) ease-out, opacity var(--t-base) linear;
+  will-change: transform;
+}
+
+.fighter--igor {
+  right: 2%;
+  width: 46%;
+  filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.55));
+}
+
+.fighter--student {
+  left: 0%;
+  width: 54%;
+  transform: scaleX(-1);
+  filter: drop-shadow(0 14px 20px rgba(0, 0, 0, 0.6));
+}
+
+.fighter-img,
+.fighter-svg {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: bottom;
+  display: block;
+}
+
+/* Игорь покачивается в стойке */
+.stage[data-phase='idle'] .fighter--igor,
+.stage[data-phase='roundCard'] .fighter--igor {
+  animation: sway 2.4s ease-in-out infinite;
+}
+
+@keyframes sway {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-1.4%) rotate(-1deg); }
+}
+
+/* Игорь щурится в судействе: лёгкий наклон вместо отдельной позы */
+.stage[data-phase='judging'] .fighter--igor {
+  transform: rotate(-2deg) translateY(-0.5%);
+}
+
+/* попадание: студент откидывается */
+.stage[data-phase='hit'] .fighter--student {
+  transform: scaleX(-1) rotate(-10deg) translateX(-4%);
+}
+
+/* 5. кулак от первого лица */
+.fist {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 46%;
+  max-width: 420px;
+  transform: translate(-50%, -50%) scale(0.3);
+  opacity: 0;
+  transition: transform 0.22s cubic-bezier(0.4, 0, 1, 1), opacity 0.12s linear;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+.fist-img,
+.fist-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.6));
+}
+
+.fist[data-phase='strike'] {
+  transform: translate(-50%, -50%) scale(1.4);
+  opacity: 1;
+}
+
+/* замирание с лёгкой дрожью */
+.fist[data-phase='freeze'],
+.fist[data-phase='answering'] {
+  transform: translate(-50%, -50%) scale(1.4);
+  opacity: 1;
+  animation: jitter 90ms steps(2, end) infinite;
+}
+
+.fist[data-phase='judging'] {
+  transform: translate(-50%, -50%) scale(1.45);
+  opacity: 1;
+  animation: jitter 70ms steps(2, end) infinite;
+}
+
+@keyframes jitter {
+  0% { translate: -1px 0; }
+  100% { translate: 1px 1px; }
+}
+
+/* уворот: кулак уходит влево за плечо */
+.fist[data-phase='parry'] {
+  transform: translate(-50%, -50%) translateX(-120%) rotate(-18deg) scale(1.2);
+  opacity: 0;
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.4s linear;
+}
+
+/* попадание: кулак влетает в камеру */
+.fist[data-phase='hit'] {
+  transform: translate(-50%, -50%) scale(3);
+  opacity: 0;
+  transition: transform 0.36s cubic-bezier(0.4, 0, 1, 1), opacity 0.3s linear 0.1s;
+}
+
+/* кольцо-волна от кулака в замедлении */
+.stage[data-slow='on'] .fist::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 60%;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  border: 2px solid rgba(255, 210, 122, 0.5);
+  border-radius: 50%;
+  animation: ripple 2.4s ease-out infinite;
+}
+
+@keyframes ripple {
+  0% { transform: scale(0.5); opacity: 0.7; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+/* 6. пыль и пот */
+.layer-dust {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(2px 2px at 20% 30%, rgba(255, 255, 255, 0.5), transparent),
+    radial-gradient(2px 2px at 70% 20%, rgba(255, 255, 255, 0.35), transparent),
+    radial-gradient(1.6px 1.6px at 45% 65%, rgba(255, 255, 255, 0.4), transparent),
+    radial-gradient(2px 2px at 85% 55%, rgba(255, 255, 255, 0.3), transparent),
+    radial-gradient(1.4px 1.4px at 12% 72%, rgba(255, 255, 255, 0.35), transparent);
+  animation: drift 9s linear infinite;
+  opacity: 0.5;
+}
+
+.stage[data-slow='on'] .layer-dust {
+  animation-duration: 26s;
+}
+
+@keyframes drift {
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-2%, -4%, 0); }
+}
+
+/* 7. виньетка, прожектор и вспышки */
+.layer-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(85% 70% at 50% 45%, transparent 40%, #000 100%);
+  transition: opacity var(--t-slow) linear;
+}
+
+.stage[data-spot='on'] .layer-vignette {
+  background: radial-gradient(28% 46% at 50% 44%, transparent 0%, #000 100%);
+}
+
+.layer-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: #fff;
+}
+
+.stage[data-phase='hit'] .layer-flash {
+  animation: flashWhite 80ms linear 1;
+  background: #fff;
+}
+
+.stage[data-phase='parry'] .layer-flash {
+  animation: flashTint 180ms linear 1;
+  background: var(--c-parry);
+}
+
+@keyframes flashWhite {
+  from { opacity: 0.9; }
+  to { opacity: 0; }
+}
+
+@keyframes flashTint {
+  from { opacity: 0.45; }
+  to { opacity: 0; }
+}
+
+/* тряска сцены на попадании */
+.stage[data-phase='hit'] .stage-camera {
+  animation: shake 0.35s linear 1;
+}
+
+@keyframes shake {
+  0%, 100% { translate: 0 0; }
+  20% { translate: -8px 4px; }
+  40% { translate: 7px -5px; }
+  60% { translate: -5px -3px; }
+  80% { translate: 4px 5px; }
+}
+
+/* «замедление времени» */
+.stage[data-slow='on'] .layer-bg,
+.stage[data-slow='on'] .fighter {
+  filter: saturate(0.6) contrast(1.1) brightness(0.85);
+}
+
+/* 8-10. слой интерфейса поверх сцены */
+.stage-ui {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+
+.stage-ui > * {
+  pointer-events: auto;
+}
+
+/* ---------- HUD ---------- */
+
+.hud {
+  padding: var(--sp-3);
+  display: grid;
+  gap: var(--sp-2);
+  background: linear-gradient(#000a, transparent);
+}
+
+.hud-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.hud-round {
+  font-family: var(--f-display);
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.hud-punch {
+  color: var(--c-spot);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.hud-sound {
+  margin-left: auto;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-sm);
+  background: #0b1020cc;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.hud-bars {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--sp-3);
+  align-items: center;
+}
+
+.hud-bar {
+  display: grid;
+  gap: 2px;
+}
+
+.hud-label {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--c-text-dim);
+}
+
+.bar {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: #0b102099;
+  border: 1px solid var(--c-line);
+  overflow: hidden;
+}
+
+/* «хвост» полосы отстаёт от заливки — удар читается */
+.bar-tail,
+.bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+}
+
+.bar-tail {
+  background: var(--c-hit);
+  transition: width 0.9s ease-out 0.25s;
+}
+
+.bar-fill {
+  background: linear-gradient(90deg, var(--c-parry), var(--c-spot));
+  transition: width var(--t-base) ease-out;
+}
+
+.pips {
+  display: flex;
+  gap: 4px;
+}
+
+.pip {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid var(--c-line);
+  background: #0b102099;
+}
+
+.pip--on {
+  background: var(--c-spot);
+  box-shadow: 0 0 10px var(--c-spot);
+}
+
+/* ---------- карточка раунда ---------- */
+
+.round-card {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--sp-2);
+  background: #000000a6;
+  animation: cardIn var(--t-base) ease-out;
+}
+
+.round-card-n {
+  font-family: var(--f-display);
+  font-size: clamp(34px, 11vw, 74px);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.round-card-punch {
+  color: var(--c-spot);
+  font-size: clamp(15px, 4.5vw, 24px);
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+}
+
+@keyframes cardIn {
+  from { opacity: 0; transform: scale(1.1); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* ---------- реплика ---------- */
+
+.bubble {
+  max-width: 34ch;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md);
+  border: 1px solid var(--c-line);
+  border-left: 4px solid var(--c-spot);
+  background: #0b1020e8;
+  cursor: default;
+}
+
+.bubble--parry { border-left-color: var(--c-parry); }
+.bubble--hit { border-left-color: var(--c-hit); }
+
+.bubble-name {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+  margin-bottom: 2px;
+}
+
+.bubble-text {
+  font-size: 15px;
+  min-height: 1.5em;
+}
+
+/* ---------- исход удара ---------- */
+
+.outcome {
+  margin-top: auto;
+  padding: var(--sp-4);
+  display: grid;
+  gap: var(--sp-3);
+  justify-items: start;
+}
+
+.outcome-tag {
+  font-family: var(--f-display);
+  font-size: clamp(30px, 10vw, 62px);
+  letter-spacing: 0.06em;
+  animation: tagPop 0.3s cubic-bezier(0.2, 1.4, 0.3, 1);
+}
+
+.outcome-tag--parry {
+  color: var(--c-parry);
+  text-shadow: 0 0 22px rgba(47, 217, 107, 0.6);
+}
+
+.outcome-tag--hit {
+  color: var(--c-hit);
+  text-shadow: 0 0 22px rgba(255, 59, 71, 0.6);
+}
+
+@keyframes tagPop {
+  from { opacity: 0; transform: scale(0.6) rotate(-6deg); }
+  to { opacity: 1; transform: scale(1) rotate(-3deg); }
+}
+
+/* ---------- карточка вопроса ---------- */
+
+.qcard {
+  margin-top: auto;
+  /* Сцена должна остаться видимой: карточка занимает нижнюю часть, не весь кадр. */
+  max-height: 56%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-line) transparent;
+  padding: var(--sp-3) var(--sp-4);
+  padding-bottom: calc(var(--sp-3) + var(--kb, 0px));
+  display: grid;
+  gap: var(--sp-2);
+  background: linear-gradient(transparent, #060a14 18%);
+  border-top: 1px solid var(--c-line);
+  animation: sheetUp 0.26s ease-out;
+}
+
+@keyframes sheetUp {
+  from { transform: translateY(16%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.qcard-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.qcard-meta {
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--c-text-dim);
+}
+
+.timer {
+  position: relative;
+  margin-left: auto;
+  width: 44px;
+  height: 44px;
+  flex: none;
+}
+
+.timer svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.timer-track,
+.timer-run {
+  fill: none;
+  stroke-width: 4;
+}
+
+.timer-track { stroke: #ffffff22; }
+
+.timer-run {
+  stroke: var(--c-spot);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear;
+}
+
+.timer--warn .timer-run {
+  stroke: var(--c-hit);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.timer-num {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.qcard-question {
+  font-size: clamp(16px, 4.2vw, 23px);
+  line-height: 1.3;
+  font-weight: 600;
+  text-wrap: pretty;
+}
+
+.qcard-gong {
+  font-size: 13px;
+  color: var(--c-spot);
+}
+
+.qcard-input {
+  width: 100%;
+  min-height: 62px;
+  padding: var(--sp-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-line);
+  background: #0b1020;
+  color: var(--c-text);
+  resize: vertical;
+}
+
+.qcard-input:disabled { opacity: 0.6; }
+
+/* Подсказка — отдельной строкой, чтобы не наезжать на кнопку на узком экране. */
+.qcard-foot {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+}
+
+.qcard-hint {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  font-size: 12px;
+  color: var(--c-text-faint);
+}
+
+.qcard-count {
+  grid-row: 2;
+  font-size: 12px;
+  color: var(--c-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.qcard-foot .btn {
+  grid-row: 2;
+  grid-column: 2;
+}
+
+/* ---------- кнопки ---------- */
+
+.btn {
+  min-height: var(--tap);
+  padding: 0 var(--sp-4);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-line);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform var(--t-fast) ease, background var(--t-fast) ease;
+}
+
+.btn:hover:not(:disabled) { background: var(--c-surface-2); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn--primary {
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+  color: #1a1206;
+}
+
+.btn--primary:hover:not(:disabled) { background: var(--c-spot); }
+
+/* ---------- старт ---------- */
+
+.start {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: var(--sp-5) var(--sp-4) var(--sp-7);
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.start-head { text-align: center; }
+
+.start .stage {
+  max-height: 42dvh;
+  min-height: 240px;
+}
+
+.start-bubble {
+  margin-top: auto;
+  padding: var(--sp-4);
+}
+
+.start-form { display: grid; gap: var(--sp-3); }
+
+.start-input {
+  width: 100%;
+  min-height: 150px;
+  padding: var(--sp-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--c-line);
+  background: var(--c-canvas);
+  color: var(--c-text);
+  resize: vertical;
+}
+
+.start-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.start-count {
+  font-size: 12px;
+  color: var(--c-text-faint);
+  font-variant-numeric: tabular-nums;
+  margin-right: auto;
+}
+
+.start-note {
+  font-size: 12px;
+  color: var(--c-text-faint);
+}
+
+/* ---------- бой и итог ---------- */
+
+.fight {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: var(--sp-3);
+  display: grid;
+  gap: var(--sp-3);
+  /* Бой занимает экран целиком: сцена сверху, транскрипт под ней. */
+  min-height: 100dvh;
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.fight .stage {
+  height: 100%;
+  aspect-ratio: auto;
+  border-radius: var(--r-md);
+}
+
+.fight-error {
+  margin-top: auto;
+  padding: var(--sp-4);
+  display: grid;
+  gap: var(--sp-3);
+  justify-items: start;
+}
+
+.transcript {
+  font-size: 14px;
+  color: var(--c-text-dim);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-sm);
+  padding: var(--sp-3);
+}
+
+.transcript summary {
+  cursor: pointer;
+  min-height: var(--tap);
+  display: flex;
+  align-items: center;
+}
+
+.result-total {
+  font-family: var(--f-display);
+  font-size: clamp(44px, 14vw, 92px);
+  line-height: 1;
+  margin: var(--sp-4) 0;
+}
+
+.result-advice,
+.result-criteria {
+  margin: var(--sp-4) 0;
+  padding-left: var(--sp-5);
+  display: grid;
+  gap: var(--sp-2);
+  font-size: 15px;
+}
+
+.result-criteria {
+  list-style: none;
+  padding-left: 0;
+}
+
+.result-criteria li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  border-bottom: 1px solid var(--c-line);
+  padding-bottom: var(--sp-2);
+}
+
+/* ---------- десктоп ---------- */
+
+@media (min-width: 768px) {
+  .stage {
+    aspect-ratio: 16 / 9;
+  }
+
+  .start .stage {
+    max-height: 52dvh;
+  }
+
+  .fight {
+    min-height: 0;
+    grid-template-rows: auto auto;
+  }
+
+  .fight .stage {
+    height: auto;
+    aspect-ratio: 16 / 9;
+    max-height: 78dvh;
+  }
+
+  .fist { width: 30%; }
+
+  .fighter--igor { width: 30%; right: 6%; }
+  .fighter--student { width: 34%; left: 4%; }
+
+  .bubble { max-width: 46ch; }
+}
+
+/* ---------- узкие телефоны ---------- */
+
+@media (max-width: 360px) {
+  .hud { padding: var(--sp-2); }
+  .qcard { padding: var(--sp-3); }
+  .bubble { max-width: 100%; }
+  .qcard-hint { display: none; }
+}
+
+/* ---------- reduced motion: без зума, тряски и мельканий ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-camera { transform: none !important; }
+
+  .fist,
+  .fighter {
+    animation: none !important;
+  }
+
+  .fist[data-phase='strike'],
+  .fist[data-phase='freeze'],
+  .fist[data-phase='answering'],
+  .fist[data-phase='judging'] {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+
+  .fist[data-phase='parry'],
+  .fist[data-phase='hit'] {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0;
+  }
+
+  /* вспышки заменяем подсветкой рамки */
+  .layer-flash { display: none; }
+
+  .stage[data-phase='hit'] { outline: 4px solid var(--c-hit); outline-offset: -4px; }
+  .stage[data-phase='parry'] { outline: 4px solid var(--c-parry); outline-offset: -4px; }
+
+  /* «замедление» — статичное затемнение */
+  .stage[data-slow='on'] .layer-bg,
+  .stage[data-slow='on'] .fighter {
+    filter: brightness(0.7);
+  }
+
+  .layer-dust { display: none; }
+  .stage[data-slow='on'] .fist::after { display: none; }
+}
+
+/* ============================================================
+   ИТОГ: ранг, радар, советы, сравнение (фишки 3-5)
+   ============================================================ */
+
+.result {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: var(--sp-5) var(--sp-4) var(--sp-7);
+  display: grid;
+  gap: var(--sp-5);
+}
+
+.result-parries {
+  color: var(--c-text-dim);
+  font-size: 15px;
+}
+
+.result-flag {
+  font-size: 13px;
+  color: var(--c-spot);
+  border-left: 3px solid var(--c-spot);
+  padding-left: var(--sp-3);
+}
+
+.result-sub {
+  font-size: 18px;
+  margin-top: var(--sp-3);
+}
+
+.result-row {
+  display: flex;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.result-criteria {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.result-criteria li {
+  border-bottom: 1px solid var(--c-line);
+  padding-bottom: var(--sp-3);
+}
+
+.result-crit-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  font-size: 15px;
+}
+
+.result-evidence {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--c-text-dim);
+}
+
+.result-evidence--none { color: var(--c-text-faint); }
+.result-source { color: var(--c-text-faint); }
+
+/* ---------- ранг ---------- */
+
+.rank {
+  display: grid;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-lg);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--rank) 14%, transparent), transparent 60%);
+}
+
+.rank-top {
+  display: flex;
+  gap: var(--sp-4);
+  align-items: center;
+}
+
+.rank-mark {
+  flex: none;
+  width: clamp(84px, 22vw, 120px);
+}
+
+.rank-mark svg { width: 100%; height: auto; }
+.rank-mark-bg { fill: color-mix(in srgb, var(--rank) 22%, transparent); }
+
+.rank-mark-ring {
+  fill: none;
+  stroke: var(--rank);
+  stroke-width: 5;
+}
+
+.rank-mark text {
+  fill: var(--rank);
+  font-family: var(--f-display);
+  font-size: 48px;
+}
+
+.rank-score {
+  font-family: var(--f-display);
+  font-size: clamp(34px, 10vw, 56px);
+  line-height: 1;
+}
+
+.rank-score span {
+  font-family: var(--f-sans);
+  font-size: 0.42em;
+  color: var(--c-text-dim);
+}
+
+.rank-title {
+  font-size: clamp(20px, 5.5vw, 28px);
+  color: var(--rank);
+  margin-top: 2px;
+}
+
+.rank-tagline {
+  font-size: 14px;
+  color: var(--c-text-dim);
+  margin-top: 2px;
+}
+
+.doneness {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 3px;
+}
+
+.done-step {
+  font-size: 9px;
+  text-align: center;
+  padding: 6px 2px;
+  border-radius: var(--r-sm);
+  background: var(--c-surface);
+  color: var(--c-text-faint);
+  border: 1px solid var(--c-line);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.done-step--on {
+  background: var(--rank);
+  border-color: var(--rank);
+  color: #11141f;
+  font-weight: 700;
+}
+
+/* ---------- радар ---------- */
+
+.radar {
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.radar svg { width: 100%; height: auto; }
+
+.radar-grid polygon {
+  fill: none;
+  stroke: var(--c-line);
+  stroke-width: 1.5;
+}
+
+.radar-grid line {
+  stroke: var(--c-line);
+  stroke-width: 1;
+}
+
+.radar-now {
+  fill: rgba(255, 178, 63, 0.3);
+  stroke: var(--c-accent);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.radar-now--grow {
+  animation: radarGrow 600ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes radarGrow {
+  from { transform: scale(0); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.radar-prev {
+  fill: none;
+  stroke: var(--c-text-faint);
+  stroke-width: 2;
+  stroke-dasharray: 7 6;
+}
+
+.radar-dots circle { fill: var(--c-accent); }
+
+.radar-labels text {
+  fill: var(--c-text-dim);
+  font-size: 15px;
+}
+
+.radar-fallback {
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+  color: var(--c-text-dim);
+}
+
+/* ---------- советы ---------- */
+
+.advice {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+  background: var(--c-surface);
+}
+
+.advice--compact { padding: var(--sp-3); background: transparent; border: none; }
+
+.advice-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sp-3);
+}
+
+.advice-head h3 { font-size: 16px; }
+
+.advice-count {
+  font-size: 13px;
+  color: var(--c-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.advice-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.advice-item--done .advice-action {
+  text-decoration: line-through;
+  color: var(--c-text-faint);
+}
+
+.advice-label {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: flex-start;
+  cursor: pointer;
+  min-height: var(--tap);
+}
+
+.advice-label input {
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+  flex: none;
+  accent-color: var(--c-parry);
+}
+
+.advice-action { font-weight: 600; }
+
+.advice-meta {
+  font-size: 13px;
+  color: var(--c-text-dim);
+  padding-left: 34px;
+}
+
+.advice-why {
+  font-size: 13px;
+  color: var(--c-text-faint);
+  padding-left: 34px;
+}
+
+.advice-why summary { cursor: pointer; }
+
+/* ---------- сравнение ---------- */
+
+.compare {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-md);
+}
+
+.compare-title { font-size: 18px; }
+
+.compare-delta {
+  font-family: var(--f-display);
+  font-size: clamp(38px, 12vw, 64px);
+  line-height: 1;
+}
+
+.compare-delta--up { color: var(--c-parry); }
+.compare-delta--down { color: var(--c-hit); }
+.compare-delta--same { color: var(--c-text-dim); }
+
+.compare-rank { font-size: 16px; }
+.compare-up { color: var(--c-parry); font-weight: 700; }
+
+.compare-note {
+  font-size: 13px;
+  color: var(--c-text-dim);
+  border-left: 3px solid var(--c-line);
+  padding-left: var(--sp-3);
+}
+
+.compare-top h3 { font-size: 15px; margin-bottom: var(--sp-2); }
+.compare-top ul { margin: 0; padding-left: var(--sp-5); font-size: 14px; }
+
+.compare-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  font-size: 14px;
+}
+
+.compare-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
+}
+
+.compare-row--up { background: rgba(47, 217, 107, 0.12); }
+
+.compare-nums {
+  color: var(--c-text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---------- реванш ---------- */
+
+.rematch-banner {
+  padding: var(--sp-4);
+  border: 1px solid var(--c-accent);
+  border-radius: var(--r-md);
+  background: rgba(255, 178, 63, 0.08);
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.rematch-banner h2 { font-size: 18px; }
+.rematch-banner p { font-size: 13px; color: var(--c-text-dim); }
+
+.link-btn {
+  justify-self: start;
+  background: none;
+  border: none;
+  padding: var(--sp-2) 0;
+  min-height: var(--tap);
+  color: var(--c-text-dim);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+/* ---------- модальное окно карточки ---------- */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: var(--sp-4);
+  background: #000000cc;
+}
+
+.modal-box {
+  max-width: 420px;
+  width: 100%;
+  max-height: 92dvh;
+  overflow-y: auto;
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border-radius: var(--r-md);
+  background: var(--c-canvas);
+  border: 1px solid var(--c-line);
+}
+
+.modal-img {
+  width: 100%;
+  height: auto;
+  border-radius: var(--r-sm);
+  max-height: 54dvh;
+  object-fit: contain;
+}
+
+.modal-hint {
+  font-size: 12px;
+  color: var(--c-text-faint);
+}
+
+.modal-row {
+  display: flex;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.modal-row .btn {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.form-error {
+  font-size: 13px;
+  color: var(--c-hit);
+}
+
+/* ---------- /qr ---------- */
+
+.qr-page {
+  min-height: 100dvh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-5);
+  background: #0a0e1a;
+  text-align: center;
+}
+
+.qr-img {
+  width: min(60vh, 86vw);
+  height: auto;
+  border-radius: var(--r-md);
+  background: #fff;
+  padding: var(--sp-3);
+}
+
+.qr-img--empty { aspect-ratio: 1; opacity: 0.2; }
+
+.qr-title {
+  font-family: var(--f-display);
+  font-size: clamp(26px, 6vw, 48px);
+  text-transform: uppercase;
+}
+
+.qr-url { color: var(--c-text-dim); font-size: clamp(15px, 3vw, 22px); }
+
+/* ---------- /dev/pitches ---------- */
+
+.dev-list {
+  list-style: none;
+  margin: var(--sp-5) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.dev-list li {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-sm);
+  padding: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.dev-text { font-size: 13px; color: var(--c-text-faint); max-width: 56ch; }
+
+@media (prefers-reduced-motion: reduce) {
+  .radar-now--grow { animation: none; }
+}
